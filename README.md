@@ -88,4 +88,72 @@ subj to Budget:
   sum{l in Landuses, c in Cells} LanduseDecision[l,c]*TransitionCost[l,c] = b;
 ```
 
-## Problem generation
+# Problem generation
+
+## Loading packages
+
+For this we will use the following R packages
+
+``` r
+library(terra)
+#> terra 1.7.62
+library(ggplot2)
+library(TroublemakeR)
+library(stringr)
+library(tidyterra)
+#> 
+#> Attaching package: 'tidyterra'
+#> The following object is masked from 'package:stats':
+#> 
+#>     filter
+```
+
+## Making the variables
+
+First we start generating the Phylogenetic diversity stack:
+
+``` r
+PD <- list.files(path = "Vilhelmsborg_test/", pattern = "^PD_.*\\.tif$", full.names = T) |> rast()
+
+PDNames <- list.files(path = "Vilhelmsborg_test/", pattern = "^PD_.*\\.tif$", full.names = F) |> 
+  stringr::str_remove_all(".tif") |> 
+  stringr::str_remove_all("PD_")
+
+names(PD) <- PDNames
+```
+
+This dataset looks like this:
+
+![](README_files/figure-gfm/figure1-1.png)<!-- -->
+
+This is problematic, since we need that if there are some NAs in layers
+where other cells have values, this will generate a problem, to solve
+that we use the following code
+
+``` r
+# Turn all NAs into 0
+PD[is.na(PD)] <- 0
+# The make a raster where you sum all the values
+SumPD <- app(PD, sum) 
+# Finally where everything is 0 based on SumPD, turn it back to NA
+PD[SumPD == 0] <- NA
+```
+
+With this we change the layer into this figure:
+
+![](README_files/figure-gfm/figure2-1.png)<!-- -->
+
+Now all the cells that have a value in one landuse will have a value in
+all landuses, but all other cells are just NA to avoid having to take
+more decisions than necessary.
+
+We also need to normalize of values from 0 to 1, in order to then
+compare it later with Richness, as this give equal weight to both layers
+
+``` r
+NormPD <- round((PD/max(minmax(PD))), 2)
+```
+
+This results in the following plot:
+
+![](README_files/figure-gfm/figure3-1.png)<!-- -->
