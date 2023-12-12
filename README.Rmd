@@ -102,6 +102,8 @@ library(tidyterra)
 
 ## Making the variables
 
+### Phylogenetic diversity
+
 First we start generating the Phylogenetic diversity stack:
 
 ```{r}
@@ -151,4 +153,41 @@ This results in the following plot:
 ```{r figure3, echo = F}
 ggplot() + geom_spatraster(data =NormPD) + facet_wrap(~lyr) + theme_void() + scale_fill_viridis_b()
 ```
+
+### Species richness
+
+We use the same code for richness
+
+```{r Richness}
+Richness <- list.files(path = "Vilhelmsborg_test/", pattern = "^richness_.*\\.tif$", full.names = T) |> rast()
+
+RichnessNames <- list.files(path = "Vilhelmsborg_test/", pattern = "^richness_.*\\.tif$", full.names = F) |> 
+  stringr::str_remove_all(".tif") |> 
+  stringr::str_remove_all("richness_")
+
+names(Richness) <- RichnessNames
+
+# Turn all NAs into 0
+Richness[is.na(Richness)] <- 0
+# The make a raster where you sum all the values
+SumRichness <- app(Richness, sum) 
+# Finally where everything is 0 based on SumPD, turn it back to NA
+Richness[SumRichness == 0] <- NA
+
+NormRichness <- round((Richness/max(minmax(Richness))), 2)
+```
+
+This turns into the following figure:
+
+```{r figure4, echo = F}
+ggplot() + geom_spatraster(data =NormRichness) + facet_wrap(~lyr) + theme_void() + scale_fill_viridis_b()
+```
+
+## Number of cells for a desicion
+
+```{r}
+n_cell <- sum(is.na(values(PD[[1]])))
+```
+
+the number of cells where desicions can be taken are `r n_cell`
 
