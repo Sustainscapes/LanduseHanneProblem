@@ -15,24 +15,24 @@ The goal of LanduseHanneProblem is to …
 
 2.  Parameters:
 
-\-$Richness_{c,l}$: Number of species in each cell $c$ for each land use
-$l$.
+- $Richness_{c,l}$: Number of species in each cell $c$ for each land use
+  $l$.
 
-\-$PhyloDiversity_{c,l}$: Phylogenetic diversity in each cell $c$ for
-each land use $l$.
+- $PhyloDiversity_{c,l}$: Phylogenetic diversity in each cell $c$ for
+  each land use $l$.
 
-\-$SuitabilityLanduse_{c,l}$: Suitability for each cell $c$ in each land
-use $l$.
+- $SuitabilityLanduse_{c,l}$: Suitability for each cell $c$ in each land
+  use $l$.
 
-\-$TransitionCost{c,l}$: Cost of transforming a cell $c$ to land use
-$l$.
+- $TransitionCost{c,l}$: Cost of transforming a cell $c$ to land use
+  $l$.
 
 - $b$: Budget.
 
 3.  Decision Variables:
 
-\-$LanduseDecision_{c, l}$: Binary decision variable indicating whether
-land use $l$ is chosen for cell $c$.
+- $LanduseDecision_{c, l}$: Binary decision variable indicating whether
+  land use $l$ is chosen for cell $c$.
 
 4.  Objective Function:
 
@@ -72,17 +72,17 @@ set Landuses; # Name of possible Landuses
 
 param Richness {Landuses, Cells}; # Number of species in each cell for each landuse
 param PhyloDiversity {Landuses,Cells}; # Phylogenetic diversity in each cell for each landuse
-param SuitabilityLanduse {Landuses,Cells} ; #suitability for each cell in each Landuses
+
 param TransitionCost {Landuses, Cells}; # Cost of transforming a cell to this landuse
 param b; #budget
 
-var LanduseDecision {l in Landuses, c in Cells} binary; # decision on which landuse to use for cell Cell
+var LanduseDecision {l in Landuses, c in Cells} binary; # decision on which landuse to use for cell
 
 maximize ConsevartionIndex:
   sum{l in Landuses, c in Cells} LanduseDecision[l,c]*Richness[l,c]*PhyloDiversity[l,c];
 
 subj to PropotionalUse{c in Cells}:
-  sum{l in Landuses} LanduseDecision[l,c]*SuitabilityLanduse[l,c] = 1;
+  sum{l in Landuses} LanduseDecision[l,c] <= 1;
 
 subj to Budget:
   sum{l in Landuses, c in Cells} LanduseDecision[l,c]*TransitionCost[l,c] = b;
@@ -194,3 +194,56 @@ n_cell <- sum(is.na(values(PD[[1]])))
 ```
 
 the number of cells where desicions can be taken are 287
+
+## Generate problem
+
+``` r
+TroublemakeR::define_cells(Rasterdomain = NormPD[[1]], name = "Test")
+
+TroublemakeR::landuse_names(landuses = PDNames, name = "Test")
+
+TroublemakeR::species_suitability(Rastercurrent = NormPD, species_names = PDNames, parameter = "PhyloDiversity", name = "Test")
+
+TroublemakeR::species_suitability(Rastercurrent = NormRichness, species_names = RichnessNames, parameter = "Richness", name = "Test")
+
+TroublemakeR::write_ampl_lines("param TransitionCost default 1", name = "Test")
+
+TroublemakeR::write_ampl_lines("param b := 100", name = "Test")
+```
+
+``` r
+library(readr)
+library(dplyr)
+#> 
+#> Attaching package: 'dplyr'
+#> The following objects are masked from 'package:terra':
+#> 
+#>     intersect, union
+#> The following objects are masked from 'package:stats':
+#> 
+#>     filter, lag
+#> The following objects are masked from 'package:base':
+#> 
+#>     intersect, setdiff, setequal, union
+Solution1 <- read_table("Solution1.txt", 
+    col_names = FALSE) |> magrittr::set_colnames(c("cell", "landuse", "des")) |> dplyr::filter(des == 1) 
+#> 
+#> ── Column specification ────────────────────────────────────────────────────────
+#> cols(
+#>   X1 = col_double(),
+#>   X2 = col_character(),
+#>   X3 = col_double()
+#> )
+```
+
+``` r
+Temp <- PD[[1]]
+values(Temp) <- NA
+values(Temp)[Solution1$cell] <- Solution1$landuse
+```
+
+``` r
+plot(Temp, colNA = "black")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
