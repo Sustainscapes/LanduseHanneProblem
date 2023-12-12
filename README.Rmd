@@ -186,7 +186,7 @@ ggplot() + geom_spatraster(data =NormRichness) + facet_wrap(~lyr) + theme_void()
 ## Number of cells for a desicion
 
 ```{r}
-n_cell <- sum(is.na(values(PD[[1]])))
+n_cell <- sum(!is.na(values(PD[[1]])))
 ```
 
 the number of cells where desicions can be taken are `r n_cell`

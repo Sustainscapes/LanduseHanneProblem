@@ -190,10 +190,10 @@ This turns into the following figure:
 ## Number of cells for a desicion
 
 ``` r
-n_cell <- sum(is.na(values(PD[[1]])))
+n_cell <- sum(!is.na(values(PD[[1]])))
 ```
 
-the number of cells where desicions can be taken are 287
+the number of cells where desicions can be taken are 113
 
 ## Generate problem
 
