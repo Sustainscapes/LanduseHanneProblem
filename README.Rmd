@@ -17,21 +17,24 @@ knitr::opts_chunk$set(
 
 <!-- badges: end -->
 
-The goal of LanduseHanneProblem is to ...
+The goal of LanduseHanneProblem is to generate an interesting model with the Vilhelmsborg area for this purposes
 
 1.  Sets:
   
   - $Cells,$: Vertex set of the spatial graph. LandusesLanduses: Name of possible land uses.
 
+  - $E$: Edges, conections between cells
+  - $Landuses$: Potential landuses of each cell
+  
 2. Parameters:
   
   - $Richness_{c,l}$: Number of species in each cell $c$ for each land use $l$.
   
   - $PhyloDiversity_{c,l}$: Phylogenetic diversity in each cell $c$ for each land use $l$.
   
-  - $SuitabilityLanduse_{c,l}$: Suitability for each cell $c$ in each land use $l$.
-  
   - $TransitionCost{c,l}$: Cost of transforming a cell $c$ to land use $l$.
+  
+  - $SpatialContiguityBonus$: Bonus for adjacent cells with the same landuse.
   
   - $b$: Budget.
 
@@ -41,7 +44,11 @@ The goal of LanduseHanneProblem is to ...
 
 4. Objective Function:
 
-$\text{Maximize } \text{ConservationIndex} = \sum_{l \in \text{Landuses}} \sum_{c \in \text{Cells}} \text{LanduseDecision}_{l,c} \cdot \text{Richness}_{l,c} \cdot \text{PhyloDiversity}_{l,c}$
+$\begin{align*}
+\text{Maximize } & \text{ConservationIndex} \\
+& = \sum_{l \in \text{Landuses}} \sum_{c \in \text{Cells}} \text{LanduseDecision}_{l,c} \cdot \text{Richness}_{l,c} \cdot \text{PhyloDiversity}_{l,c} \\
+& \quad + \text{SpatialContiguityBonus} \cdot \sum_{(i,j) \in E} \sum_{l \in \text{Landuses}} \text{LanduseDecision}_{l,i} \cdot \text{LanduseDecision}_{l,j}
+\end{align*}$
 
 Constraints:
 
@@ -52,12 +59,18 @@ $\text{Subject to ProportionalUse}_{c}: \sum_{l \in \text{Landuses}} \text{Landu
   - Budget Constraint:
 
 $\text{Subject to Budget}: \sum_{l \in \text{Landuses}} \sum_{c \in \text{Cells}} \text{LanduseDecision}_{l,c} \cdot \text{TransitionCost}_{l,c} = b$
+    
+  - Minimum Cells per landuse Contraint:
+    
+$\text{Subject to MinimumCellsPerLandUse}_{l}: \sum_{c \in \text{Cells}} \text{LanduseDecision}_{l, c} \geq 1 \quad \forall l \in \text{Landuses}$
 
-Here, $LanduseDecision_{c, l}$ is a binary decision variable that is 1 if land use $l$ is chosen for cell $c$ and 0 otherwise. The objective function aims to maximize the conservation index, which is the product of richness, phylogenetic diversity, and the decision variable.
+Here, $LanduseDecision_{c, l}$ is a binary decision variable that is 1 if land use $l$ is chosen for cell $c$ and 0 otherwise. The objective function aims to maximize the conservation index, which is the product of richness, phylogenetic diversity, and the decision variable, which has a bonus if adjacent cells are of the same landuse.
 
 The Proportional Use constraint ensures that for each cell, the sum of the decision variables weighted by suitability is equal to 1,indicating that exactly one land use is chosen for each cell.
 
 The Budget constraint ensures that the total cost of transitioning cells to their chosen land uses does not exceed the budget $b$
+
+Minimum Cells per landuse Contraint ensures that we at least have a certain number of each landuse
 
 This model can be solved using linear programming techniques to find the optimal land-use decisions that maximize the conservation index within the given budget.
 
@@ -66,20 +79,31 @@ All this is summarized in this code for ampl
 ```{bash, eval = F}
 set Cells;   # vertex set of the spacial graph
 set Landuses; # Name of possible Landuses
+set E within {Cells,Cells};   # Connections between cells
 
 param Richness {Landuses, Cells}; # Number of species in each cell for each landuse
+
 param PhyloDiversity {Landuses,Cells}; # Phylogenetic diversity in each cell for each landuse
 
 param TransitionCost {Landuses, Cells}; # Cost of transforming a cell to this landuse
+
 param b; #budget
+
+param SpatialContiguityBonus; # Bonus for adjacent cells with the same landuse
 
 var LanduseDecision {l in Landuses, c in Cells} binary; # decision on which landuse to use for cell
 
-maximize ConsevartionIndex:
-  sum{l in Landuses, c in Cells} LanduseDecision[l,c]*Richness[l,c]*PhyloDiversity[l,c];
+maximize ConservationIndex:
+  sum{l in Landuses, c in Cells} LanduseDecision[l,c]*Richness[l,c]*PhyloDiversity[l,c] +
+  SpatialContiguityBonus * sum{(i,j) in E, l in Landuses} LanduseDecision[l,i] * LanduseDecision[l,j];
+
 
 subj to PropotionalUse{c in Cells}:
   sum{l in Landuses} LanduseDecision[l,c] <= 1;
+
+# Ensure that at least x cells are selected for each land use
+subj to MinimumCellPerLandUse{l in Landuses}:
+  sum{c in Cells} LanduseDecision[l, c] >= 1;
 
 subj to Budget:
   sum{l in Landuses, c in Cells} LanduseDecision[l,c]*TransitionCost[l,c] = b;
@@ -194,36 +218,51 @@ the number of cells where desicions can be taken are `r n_cell`
 ## Generate problem
 
 
-```{r, eval=FALSE}
-TroublemakeR::define_cells(Rasterdomain = NormPD[[1]], name = "Test")
+```{r, eval=F, cache = T}
+# Define Cells
+TroublemakeR::define_cells(Rasterdomain = NormPD[[1]], name = "Problem2")
 
-TroublemakeR::landuse_names(landuses = PDNames, name = "Test")
+# Define Edges
+TroublemakeR::find_connections(Rasterdomain = NormPD[[1]], name = "Problem2")
 
-TroublemakeR::species_suitability(Rastercurrent = NormPD, species_names = PDNames, parameter = "PhyloDiversity", name = "Test")
+TroublemakeR::landuse_names(landuses = PDNames, name = "Problem2")
 
-TroublemakeR::species_suitability(Rastercurrent = NormRichness, species_names = RichnessNames, parameter = "Richness", name = "Test")
+TroublemakeR::species_suitability(Rastercurrent = NormPD, species_names = PDNames, parameter = "PhyloDiversity", name = "Problem2")
 
-TroublemakeR::write_ampl_lines("param TransitionCost default 1", name = "Test")
+TroublemakeR::species_suitability(Rastercurrent = NormRichness, species_names = RichnessNames, parameter = "Richness", name = "Problem2")
 
-TroublemakeR::write_ampl_lines("param b := 100", name = "Test")
+TroublemakeR::write_ampl_lines("param TransitionCost default 1", name = "Problem2")
+
+TroublemakeR::write_ampl_lines("param b := 100", name = "Problem2")
+
+TroublemakeR::write_ampl_lines("param SpatialContiguityBonus := 0.2", name = "Problem2")
 ```
 
 
 ```{r}
 library(readr)
 library(dplyr)
+Solution2 <- read_table("Solution2.txt", 
+    col_names = FALSE) |> magrittr::set_colnames(c("cell", "landuse", "des")) |> dplyr::filter(des == 1)
+
 Solution1 <- read_table("Solution1.txt", 
-    col_names = FALSE) |> magrittr::set_colnames(c("cell", "landuse", "des")) |> dplyr::filter(des == 1) 
+    col_names = FALSE) |> magrittr::set_colnames(c("cell", "landuse", "des")) |> dplyr::filter(des == 1)
 ```
 
 
 ```{r}
-Temp <- PD[[1]]
-values(Temp) <- NA
-values(Temp)[Solution1$cell] <- Solution1$landuse
+Temp2 <- PD[[1]]
+values(Temp2) <- NA
+values(Temp2)[Solution2$cell] <- Solution2$landuse
+
+Temp1 <- PD[[1]]
+values(Temp1) <- NA
+values(Temp1)[Solution1$cell] <- Solution1$landuse
 ```
 
 ```{r}
-plot(Temp, colNA = "black")
+Both <- c(Temp1, Temp2)
+names(Both) <- c("Bonus_0", "Bonus_0.2")
+ggplot() + geom_spatraster(data = Both) + facet_wrap(~lyr) + theme_void()
 ```
 

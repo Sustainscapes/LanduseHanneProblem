@@ -1,0 +1,13 @@
+reset;
+
+model /home/au687614/Documents/LanduseHanneProblem/DiversityIndex2.mod;
+
+data /home/au687614/Documents/LanduseHanneProblem/Problem2.dat;
+
+option solver './gurobi';
+
+solve;
+
+print {c in Cells, l in Landuses}: c,l,LanduseDecision[l,c] > /home/au687614/Documents/LanduseHanneProblem/Solution2.txt;
+
+close /home/au687614/Documents/LanduseHanneProblem/Solution2.txt;
